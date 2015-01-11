@@ -17,16 +17,14 @@ package com.andyscan.gdaademo;
  *
  **/
 
-import android.os.AsyncTask;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.Status;
-import com.google.android.gms.drive.Contents;
 import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.DriveApi.DriveContentsResult;
 import com.google.android.gms.drive.DriveApi.MetadataBufferResult;
@@ -41,8 +39,6 @@ import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.MetadataBuffer;
 import com.google.android.gms.drive.MetadataChangeSet;
 import com.google.android.gms.drive.MetadataChangeSet.Builder;
-import com.google.android.gms.drive.events.ChangeEvent;
-import com.google.android.gms.drive.events.DriveEvent;
 import com.google.android.gms.drive.query.Filter;
 import com.google.android.gms.drive.query.Filters;
 import com.google.android.gms.drive.query.Query;
@@ -110,10 +106,10 @@ final class GooDrive { private GooDrive() {}
    * find file/folder in GOODrive
    * @param titl    file/folder name (optional)
    * @param mime    file/folder mime type (optional)
-   * @return        file/folder ID / null on fail
+   * @return        list of file/folder IDs / null on fail
    */
-  static ArrayList<UT.GF> search(DriveId prId, String titl, String mime) {
-    ArrayList<UT.GF> gfs = new ArrayList<>();
+  static ArrayList<GF> search(DriveId prId, String titl, String mime) {
+    ArrayList<GF> gfs = new ArrayList<>();
 
     if (isConnected()) {
       // add query conditions, build query
@@ -131,15 +127,13 @@ final class GooDrive { private GooDrive() {}
           mdb = rslt.getMetadataBuffer();
           for (Metadata md : mdb) {
             if (md == null || !md.isDataValid() || md.isTrashed()) continue;
-            // NULL title value indicates 'deleted' state
-            gfs.add(new UT.GF(md.getTitle(), md.getDriveId().encodeToString()));
+            gfs.add(new GF(md.getTitle(), md.getDriveId().encodeToString()));
           }
         } finally { if (mdb != null) mdb.close(); }
       }
     }
     return gfs;
   }
-
   /************************************************************************************************
    * create file/folder in GOODrive
    * @param prId  parent's ID, null for root
@@ -149,51 +143,46 @@ final class GooDrive { private GooDrive() {}
    * @return      file id  / null on fail
    */
   static DriveId create(DriveId prId, String titl, String mime, byte[] buf) {
+    if (titl == null || !isConnected()) return null;  //------------->>>
     DriveId dId = null;
-    if (titl != null && isConnected()) {
-      DriveFolder pFld =
-       (prId == null) ? Drive.DriveApi.getRootFolder(mGAC) : Drive.DriveApi.getFolder(mGAC, prId);
-      if (pFld == null) return null; //----------------->>>
+    DriveFolder pFldr = (prId == null) ?
+     Drive.DriveApi.getRootFolder(mGAC) : Drive.DriveApi.getFolder(mGAC, prId);
+    if (pFldr == null) return null; //----------------->>>
 
-      if (buf != null) {  // create file
-        if (mime != null) {   // file must have mime
-          DriveContentsResult ctRs = Drive.DriveApi.newDriveContents(mGAC).await();
-          if ((ctRs != null) && (ctRs.getStatus().isSuccess())) {
-            MetadataChangeSet meta =
-             new MetadataChangeSet.Builder().setTitle(titl).setMimeType(mime).build();
-            DriveFileResult dvRs = pFld.createFile(mGAC, meta, ctRs.getDriveContents()).await();
-            DriveFile dFil = dvRs != null && dvRs.getStatus().isSuccess() ?
-             dvRs.getDriveFile() : null;
-            if (dFil != null) {
-              ctRs = dFil.open(mGAC, DriveFile.MODE_WRITE_ONLY, null).await();
-              if ((ctRs != null ) && (ctRs.getStatus().isSuccess())) try {
-                DriveContents dc = ctRs.getDriveContents();
-                dc.getOutputStream().write(buf);
-                Status stts = dc.commit(mGAC, meta).await(); //.commitAndCloseContents(mGAC, ctRs.getDriveContents()).await();
-                if ((stts != null) && stts.isSuccess()) {
-                  MetadataResult mdRs = dFil.getMetadata(mGAC).await();
-                  if ((mdRs != null) && mdRs.getStatus().isSuccess()) {
-                    dId = mdRs.getMetadata().getDriveId();
-                  }
-                }
-              } catch (Exception e) {UT.le(e);}
+    MetadataChangeSet meta;
+    if (buf != null) {  // create file
+      if (mime != null) {   // file must have mime
+        DriveContentsResult r1 = Drive.DriveApi.newDriveContents(mGAC).await();
+        if (r1 == null || !r1.getStatus().isSuccess()) return null; //-------->>>
+
+        meta = new MetadataChangeSet.Builder().setTitle(titl).setMimeType(mime).build();
+        DriveFileResult r2 = pFldr.createFile(mGAC, meta, r1.getDriveContents()).await();
+        DriveFile dFil = r2 != null && r2.getStatus().isSuccess() ? r2.getDriveFile() : null;
+        if (dFil == null) return null; //---------->>>
+
+        r1 = dFil.open(mGAC, DriveFile.MODE_WRITE_ONLY, null).await();
+        if ((r1 != null ) && (r1.getStatus().isSuccess())) try {
+          Status stts = bytes2Cont(r1.getDriveContents(), buf).commit(mGAC, meta).await();
+          if ((stts != null) && stts.isSuccess()) {
+            MetadataResult r3 = dFil.getMetadata(mGAC).await();
+            if (r3 != null && r3.getStatus().isSuccess()) {
+              dId = r3.getMetadata().getDriveId();
             }
           }
-        }
-      } else {
-        MetadataChangeSet meta =
-         new MetadataChangeSet.Builder().setTitle(titl).setMimeType(UT.MIME_FLDR).build();
-        DriveFolderResult rs0 = pFld.createFolder(mGAC, meta).await();
-        DriveFolder dFld =
-         (rs0 != null) && rs0.getStatus().isSuccess() ? rs0.getDriveFolder() : null;
-        if (dFld != null) {
-          MetadataResult rs1 = dFld.getMetadata(mGAC).await();
-          if ((rs1 != null) && rs1.getStatus().isSuccess()) {
-            dId = rs1.getMetadata().getDriveId();
-          }
+        } catch (Exception e) {UT.le(e);}
+      }
+
+    } else {
+      meta = new MetadataChangeSet.Builder().setTitle(titl).setMimeType(UT.MIME_FLDR).build();
+      DriveFolderResult r1 = pFldr.createFolder(mGAC, meta).await();
+      DriveFolder dFld = (r1 != null) && r1.getStatus().isSuccess() ? r1.getDriveFolder() : null;
+      if (dFld != null) {
+        MetadataResult r2 = dFld.getMetadata(mGAC).await();
+        if ((r2 != null) && r2.getStatus().isSuccess()) {
+          dId = r2.getMetadata().getDriveId();
         }
       }
-      }
+    }
     return dId;
   }
   /************************************************************************************************
@@ -206,11 +195,9 @@ final class GooDrive { private GooDrive() {}
     if (isConnected()) {
       DriveFile df = Drive.DriveApi.getFile(mGAC, dId);
       DriveContentsResult rslt = df.open(mGAC, DriveFile.MODE_READ_ONLY, null).await();
-      //ContentsResult rslt = df.openContents(mGAC, DriveFile.MODE_READ_ONLY, null).await();
       if ((rslt != null) && rslt.getStatus().isSuccess()) {
         DriveContents cont = rslt.getDriveContents();
-        InputStream is = cont.getInputStream();
-        buf = UT.is2Bytes(is);
+        buf = UT.is2Bytes(cont.getInputStream());
         cont.discard(mGAC);
       }
     }
@@ -225,38 +212,33 @@ final class GooDrive { private GooDrive() {}
    * @return       success status
    */
   static boolean update(DriveId dId, String titl, String mime, String desc, byte[] buf){
-    Boolean bOK = false;
-    if (dId != null && isConnected()) {
-      Builder mdBd = new MetadataChangeSet.Builder();
-      if (titl != null) mdBd.setTitle(titl);
+    if (dId == null || !isConnected())  return false;   //------------>>>
 
-      if (mime == null || UT.MIME_FLDR.equals(mime)) {
-        DriveFolder dFld = Drive.DriveApi.getFolder(mGAC, dId);
-        MetadataResult rs0 = dFld.updateMetadata(mGAC, mdBd.build()).await();
-        bOK = (rs0 != null) && rs0.getStatus().isSuccess();
-      } else {
-        DriveFile dFil = Drive.DriveApi.getFile(mGAC, dId);
-        mdBd.setMimeType(mime);
-        if (desc != null) mdBd.setDescription(desc);
-        MetadataChangeSet meta = mdBd.build();
-        MetadataResult rs0 = dFil.updateMetadata(mGAC, meta).await();
-        bOK = (rs0 != null) && rs0.getStatus().isSuccess();
-        if (buf != null) {
-          DriveContentsResult rs1 = dFil.open(mGAC, DriveFile.MODE_WRITE_ONLY, null).await();
-          //ContentsResult rs1 = dFil.openContents(mGAC, DriveFile.MODE_WRITE_ONLY, null).await();
-          if (rs1.getStatus().isSuccess()) try {
-            DriveContents dc = rs1.getDriveContents();
-            dc.getOutputStream().write(buf);
-            //Status stts = dFil.commitAndCloseContents(mGAC, rs1.getContents()).await();
-            Status stts = dc.commit(mGAC, meta).await();
-            return bOK && (stts != null && stts.isSuccess());
-          } catch (Exception e) { UT.le(e);}
+    Boolean bOK = false;
+    Builder mdBd = new MetadataChangeSet.Builder();
+    if (titl != null) mdBd.setTitle(titl);
+    if (mime != null) mdBd.setMimeType(mime);
+    if (desc != null) mdBd.setDescription(desc);
+    MetadataChangeSet meta = mdBd.build();
+
+    if (mime == null || UT.MIME_FLDR.equals(mime)) {
+      DriveFolder dFldr = Drive.DriveApi.getFolder(mGAC, dId);
+      MetadataResult r1 = dFldr.updateMetadata(mGAC, meta).await();
+      bOK = (r1 != null) && r1.getStatus().isSuccess();
+
+    } else {
+      DriveFile dFile = Drive.DriveApi.getFile(mGAC, dId);
+      MetadataResult r1 = dFile.updateMetadata(mGAC, meta).await();
+      if ((r1 != null) && r1.getStatus().isSuccess() && buf != null) {
+        DriveContentsResult r2 = dFile.open(mGAC, DriveFile.MODE_WRITE_ONLY, null).await();
+        if (r2.getStatus().isSuccess()) {
+          Status r3 = bytes2Cont(r2.getDriveContents(), buf).commit(mGAC, meta).await();
+          bOK = (r3 != null && r3.isSuccess());
         }
       }
     }
     return bOK;
   }
-
   /************************************************************************************************
    * builds a file tree MYROOT/yyyy-mm/yymmdd-hhmmss.jpg
    * @param root  MYROOT
@@ -279,15 +261,14 @@ final class GooDrive { private GooDrive() {}
    * runs a test scanning GooDrive, downloading and updating jpegs
    * @param root  MYROOT
    */
-  static ArrayList<UT.GF> testTreeGDAA(String root) {
-    ArrayList<UT.GF> gfs0 = search((DriveId)null, root, null);
-    if (gfs0 != null) for (UT.GF gf0 : gfs0) {
-      ArrayList<UT.GF> gfs1 = search(DriveId.decodeFromString(gf0.id), null, null);
-      if (gfs1 != null) for (UT.GF gf1 : gfs1) {
+  static ArrayList<GF> testTreeGDAA(String root) {
+    ArrayList<GF> gfs0 = search((DriveId)null, root, null);
+    if (gfs0 != null) for (GF gf0 : gfs0) {
+      ArrayList<GF> gfs1 = search(DriveId.decodeFromString(gf0.id), null, null);
+      if (gfs1 != null) for (GF gf1 : gfs1) {
         gfs0.add(gf1);
-        ArrayList<UT.GF> gfs2 = search(DriveId.decodeFromString(gf1.id), null, null);
-        if (gfs2 != null) for (UT.GF gf2 : gfs2) {
-          UT.TM.reset();
+        ArrayList<GF> gfs2 = search(DriveId.decodeFromString(gf1.id), null, null);
+        if (gfs2 != null) for (GF gf2 : gfs2) {
           byte[] buf = read(DriveId.decodeFromString(gf2.id));
           if (buf != null) {
             gf2.titl += (", " + (buf.length/1024) + " kB ");
@@ -295,7 +276,6 @@ final class GooDrive { private GooDrive() {}
             gf2.titl += (" failed to download ");
           }
           update(DriveId.decodeFromString(gf2.id), null, null, "seen " + UT.time2Titl(null), null);
-          gf2.titl += ("in " + UT.TM.reset() + "s");
           gfs0.add(gf2);
         }
       }
@@ -304,11 +284,21 @@ final class GooDrive { private GooDrive() {}
   }
 
   private static DriveId findOrCreateFolder(DriveId prnt, String titl){
-    ArrayList<UT.GF> gfs = search(prnt, titl, UT.MIME_FLDR);
+    ArrayList<GF> gfs = search(prnt, titl, UT.MIME_FLDR);
     if (gfs.size() > 0) {
       return DriveId.decodeFromString(gfs.get(0).id);
     }
     return create(prnt, titl, null, null);
+  }
+  private static DriveContents bytes2Cont(DriveContents driveContents, byte[] buf) {
+    OutputStream os = driveContents.getOutputStream();
+    try { os.write(buf);
+    } catch (IOException e)  { UT.le(e);}
+     finally {
+      try { os.close();
+      } catch (Exception e) { UT.le(e);}
+    }
+    return driveContents;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -320,8 +310,8 @@ final class GooDrive { private GooDrive() {}
    * @param mime    file/folder mime type (optional)
    * @return        arraylist of found objects
    */
-  static ArrayList<UT.GF> search(String prId, String titl, String mime) {
-    ArrayList<UT.GF> gfs = new ArrayList<>();
+  static ArrayList<GF> search(String prId, String titl, String mime) {
+    ArrayList<GF> gfs = new ArrayList<>();
     if (isConnected()) {
       String qryClause = "'me' in owners and ";
       if (prId != null) qryClause += "'" + prId + "' in parents and ";
@@ -447,18 +437,17 @@ final class GooDrive { private GooDrive() {}
    * runs a test scanning GooDrive, downloading and updating jpegs
    * @param root  MYROOT
    */
-  static ArrayList<UT.GF> testTreeREST(String root) {
-    ArrayList<UT.GF> gfs0 = search((String)null, root, null);
+  static ArrayList<GF> testTreeREST(String root) {
+    ArrayList<GF> gfs0 = search((String)null, root, null);
     if (gfs0 != null) {
-      for (UT.GF gf0 : gfs0) {
-        ArrayList<UT.GF> gfs1 = search(gf0.id, null, null);
+      for (GF gf0 : gfs0) {
+        ArrayList<GF> gfs1 = search(gf0.id, null, null);
         if (gfs1 != null) {
           gfs0.addAll(gfs1);
-          for (UT.GF gf1 : gfs1) {
-            ArrayList<UT.GF> gfs2 = search(gf1.id, null, null);
+          for (GF gf1 : gfs1) {
+            ArrayList<GF> gfs2 = search(gf1.id, null, null);
             if (gfs2 != null) {
-              for (UT.GF gf2 : gfs2) {
-                UT.TM.reset();
+              for (GF gf2 : gfs2) {
                 byte[] buf = read(gf2.id);
                 if (buf != null) {
                   gf2.titl += (", " + (buf.length/1024) + " kB ");
@@ -466,7 +455,6 @@ final class GooDrive { private GooDrive() {}
                   gf2.titl += (" failed to download ");
                 }
                 update(gf2.id, null, null, "seen " + UT.time2Titl(null), null);
-                gf2.titl += ("in " + UT.TM.reset() + "s");
                 gfs0.add(gf2);
               }
             }
@@ -477,14 +465,14 @@ final class GooDrive { private GooDrive() {}
     return gfs0;
   }
 
-  private static ArrayList<UT.GF> search(ArrayList<UT.GF> gfs, List qry) throws IOException {
+  private static ArrayList<GF> search(ArrayList<GF> gfs, List qry) throws IOException {
     String npTok = null;
     if (qry != null) do {
       FileList gLst = qry.execute();
       if (gLst != null) {
         for (File gFl : gLst.getItems()) {
           if (gFl.getLabels().getTrashed()) continue;
-          gfs.add(new UT.GF(gFl.getTitle(), gFl.getId()));
+          gfs.add(new GF(gFl.getTitle(), gFl.getId()));
         }                                            //else UT.lg("failed " + gFl.getTitle());
         npTok = gLst.getNextPageToken();
         qry.setPageToken(npTok);
@@ -493,12 +481,20 @@ final class GooDrive { private GooDrive() {}
     return gfs;
   }
   private static String  findOrCreateFolder(String prnt, String titl){
-    ArrayList<UT.GF> gfs = search(prnt, titl, UT.MIME_FLDR);
+    ArrayList<GF> gfs = search(prnt, titl, UT.MIME_FLDR);
     if (gfs.size() > 0) {
       return gfs.get(0).id;
     }
     return create(prnt, titl, null, null);
   }
+
+  final static class GF{
+    String titl, id;
+    GF(String t, String i) { titl = t; id = i;}
+  }
+
+
+
 }
 
 /***
