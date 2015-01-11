@@ -6,7 +6,7 @@
         android:title="@string/action_scan"
         android:orderInCategory="100"
         android:showAsAction="always"
-        android:icon="@drawable/ic_action_photo"/>
+        android:icon="@drawable/ic_action_upload"/>
 
   <item android:id="@+id/action_list"
         android:title="@string/action_scan"

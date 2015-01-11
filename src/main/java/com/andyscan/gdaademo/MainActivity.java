@@ -90,6 +90,7 @@ public class MainActivity extends Activity
   public boolean onOptionsItemSelected(MenuItem item) {
     switch (item.getItemId()) {
       case R.id.action_scan: {
+        mDispTxt.setText(getString(R.string.disp_text));
         Intent it = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (it.resolveActivity(UT.acx.getPackageManager()) != null) {
           File tmpFl = null;
@@ -105,18 +106,16 @@ public class MainActivity extends Activity
       }
 
       case R.id.action_list: {
-        mDispTxt.setText("running LONG test, patience");
-        new AsyncTask<Activity, Void, String>() {
-          Activity mCtx;   // OUCH !!!
+        mDispTxt.setText("running LONG test, patience please");
+        new AsyncTask<Void, Void, String>() {
           @Override
-          protected String doInBackground(Activity... params) {
-            mCtx = params[0];
-            ArrayList<UT.GF> gfs = GooDrive.testTreeGDAA(UT.MYROOT);
-            //ArrayList<UT.GF> gfs = GooDrive.testTreeREST(UT.MYROOT);
+          protected String doInBackground(Void... params) {
+            ArrayList<GooDrive.GF>gfs = GooDrive.testTreeGDAA(UT.MYROOT);      // GDAA flavor
+            //ArrayList<GooDrive.GF>gfs = GooDrive.testTreeREST(UT.MYROOT);      // RESTful flavor
             if (gfs == null)
               return null;
             String dsp = "";
-            for (UT.GF gf : gfs) {
+            for (GooDrive.GF gf : gfs) {
               dsp += (gf.titl + "\n");
             }
             return dsp;
@@ -124,11 +123,11 @@ public class MainActivity extends Activity
           @Override
           protected void onPostExecute(String s) { super.onPostExecute(s);
             if (s == null)
-              Toast.makeText(mCtx,"",Toast.LENGTH_LONG);
+              mDispTxt.setText("nothing found");
             else
               mDispTxt.setText(s);
           }
-        }.execute(this);
+        }.execute();
         return true;
       }
 
@@ -183,8 +182,8 @@ public class MainActivity extends Activity
               File tmpFl = null;
               try {
                 tmpFl = new File(mTmpFlNm);
-                GooDrive.createTreeGDAA(UT.MYROOT, titl, UT.file2Bytes(tmpFl));
-                //GooDrive.createTreeREST(UT.MYROOT, titl, UT.file2Bytes(tmpFl));
+                GooDrive.createTreeGDAA(UT.MYROOT, titl, UT.file2Bytes(tmpFl));   // GDAA flavor
+                //GooDrive.createTreeREST(UT.MYROOT, titl, UT.file2Bytes(tmpFl));  // REST flavor
               } finally { if (tmpFl != null) tmpFl.delete(); }
             }}).start();
           }

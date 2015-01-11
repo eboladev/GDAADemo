@@ -19,12 +19,10 @@ package com.andyscan.gdaademo;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.google.android.gms.auth.GoogleAuthUtil;
 
@@ -45,7 +43,7 @@ import java.util.Locale;
 final public class UT {  private UT() {}
   private static final String L_TAG = "_";
 
-  static final String MYROOT = "GRDemoRoot";
+  static final String MYROOT = "GDAADemoRoot";
   static final String TMP_FILENM = "temp";
   static final String JPEG_EXT = ".jpg";
   static final String MIME_JPEG = "image/jpeg";
@@ -66,11 +64,6 @@ final public class UT {  private UT() {}
       mInst = new UT();                                         //lg("img cache " + ccheSz);
     }
     return mInst;
-  }
-
-  final static class GF{
-    String titl, id;
-    GF(String t, String i) { titl = t; id = i;}
   }
 
   final static class AM{  private AM() {}
@@ -152,20 +145,6 @@ final public class UT {  private UT() {}
     }
   }
 
-  final static class TM {   private TM(){}
-    private static long tmStart;
-    static String elaps() {
-      return " "+String.format(Locale.US, "%.2f",(double)(System.nanoTime()-tmStart)/1000000000.0);
-    }
-    static String reset() {
-      long newTime = System.nanoTime();
-      double rv = (double)(newTime-tmStart)/1000000000.0;
-      tmStart = newTime;
-      return " "+String.format(Locale.US, "%.2f", rv);
-    }
-  }
-
-
   static File bytes2File(byte[] buf, File fl) {
     if (buf == null || fl == null) return null;
     BufferedOutputStream bs = null;
@@ -222,13 +201,9 @@ final public class UT {  private UT() {}
       return result.toString();
     } finally {printWriter.close();}
   }
-  static void le(Throwable ex){ le (ex, null); }
-  static void le(Throwable ex, String msg){
-    try {
-      String err = (ex == null || ex.getMessage() == null) ? "?" : ex.getMessage();
-      msg = (msg == null) ? err : msg + (": " + err);
-      Log.e(L_TAG, msg + "\n " + stack2String(ex));
-    } catch (Exception e) {}   // ignore by design
+  static void le(Throwable ex){
+    String msg = (ex == null || ex.getMessage() == null) ? "" : ex.getMessage() +"\n";
+    try { Log.e(L_TAG, msg  + stack2String(ex)); } catch (Exception e) {}
   }
   static void lg(String msg) { if (msg != null) { Log.d(L_TAG, msg); } }
 
