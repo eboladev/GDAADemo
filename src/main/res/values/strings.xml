@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">GDAADemo</string>
+    <string name="disp_text">
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+      Hello world!\n
+    </string>
+
+  <!-- menu -->
+  <string name="action_scan">Scan Document</string>
+  <string name="action_list">List Files</string>
+  <string name="action_account">Select Google Account…</string>
+
+</resources>
