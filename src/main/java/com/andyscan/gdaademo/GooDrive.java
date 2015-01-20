@@ -17,8 +17,10 @@ package com.andyscan.gdaademo;
  *
  **/
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -197,8 +199,8 @@ final class GooDrive { private GooDrive() {}
       DriveContentsResult rslt = df.open(mGAC, DriveFile.MODE_READ_ONLY, null).await();
       if ((rslt != null) && rslt.getStatus().isSuccess()) {
         DriveContents cont = rslt.getDriveContents();
-        buf = UT.is2Bytes(cont.getInputStream());
-        cont.discard(mGAC);
+        buf = cont2Bytes(cont);     // UT.is2Bytes(cont.getInputStream());
+        cont.discard(mGAC);    // or cont.commit();  they are equiv if READONLY
       }
     }
     return buf;
@@ -299,6 +301,21 @@ final class GooDrive { private GooDrive() {}
       } catch (Exception e) { UT.le(e);}
     }
     return driveContents;
+  }
+  private static byte[] cont2Bytes(DriveContents contents) {
+    BufferedReader reader = new BufferedReader(new InputStreamReader(contents.getInputStream()));
+    StringBuilder builder = new StringBuilder();
+    String line;
+    try {
+      while ((line = reader.readLine()) != null) {
+        builder.append(line);
+      }
+      return builder.toString().getBytes();
+    } catch (Exception e) {UT.le(e);}
+    finally {
+      try {reader.close();} catch (Exception e) {UT.le(e);}
+    }
+    return null;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////
