@@ -21,10 +21,7 @@ GDAADemo has only 2 functions:
 
 1/ UPLOAD (upload icon) will invoke a camera and the resulting picture is uploaded to
 Google Drive, creating a simple tree directory structure in the process. 
-MYROOT -- MONTH(yyyy-mm) --+- FILE(yymmdd-hhmmss.jpg)
-                           +- FILE(yymmdd-hhmmss.jpg)
-                           +- ...
-This 'complication', createTreeGDAA/createTreeREST, allows to test different methods
+The createTreeGDAA/createTreeREST methods allow to test different methods
 (search, create folder, ...) in the process.
 
 2/ DOWNLOAD (download icon) scans the tree created by GDAADemo 
